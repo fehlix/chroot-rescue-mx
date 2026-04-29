@@ -9,8 +9,11 @@
 
 #     VERSION="1.07"
 #VERSION_DATE="Wed Dec 23 01:19:04 PM MST 2020"
-     VERSION="1.07-260424"
- VERSION_DATE="Fri, 24 Apr 2026 18:42:27 -0400"
+#     VERSION="1.07-2302"
+#VERSION_DATE="Sat, 25 Feb 2023 12:45:10 -0500"
+
+     VERSION="1.07-260429"
+ VERSION_DATE="Wed, 29 Apr 2026 06:48:45 -0400"
 
           TOP_DIR="/media"
   GRAPHICAL_MENUS="true"
@@ -68,17 +71,17 @@ select_usage() {
 
 cat<<Usage
 Usage: $ME [<options>]
-Look for all Linux systems under the top directory ($TOP_DIR).
-Then provide a menu to chroot into any of the Liux systems.
+Look for Linux systems already mounted under the top directory ($TOP_DIR).
+Then provide a menu to chroot into any of the Linux systems found.
 
 Options:
   -C  --color=<xxx>       Set color scheme to off|low|low2|bw|dark|high
-  -d  --dir=<directory>   Directory to look for linux systems under
+  -d  --dir=<directory>   Directory to look for Linux systems under
                           Default: $TOP_DIR
   -h  --help              Show this usage
   -m  --menu              Output menu information then exit
   -M  --max-cols=<x>      Can be 3,4,5, or 6
-  -o  --pause             Pause before exiting if nothing is found
+  -p  --pause             Pause before exiting if nothing is found
   -s  --separator=<x>     Character to separate columns of data
                           Default: $K_IFS
   -V  --verbose           Print more, including many commands
@@ -95,13 +98,13 @@ scan_usage() {
 
 cat<<Usage
 Usage: $ME [<options>]
-SCAN ALL PARTITIONS for Linux systems.  Mount all that are found
-under the top directory (${TOP_DIR%-*}-...). Then provide a menu
-to chroot into any Linux system system found under the top directory.
+SCAN ALL PARTITIONS for Linux systems. Mount all that are found under
+the directory (${TOP_DIR%-*}-...). Then provide a menu to chroot
+into any Linux system found.
 
 Options:
   -C  --color=<xxx>       Set color scheme to off|low|low2|bw|dark|high
-  -d  --dir=<directory>   Directory to look for linux systems under
+  -d  --dir=<directory>   Mount found partitions under this directory
                           Default: ${TOP_DIR%-*}-...
   -h  --help              Show this usage
   -m  --menu              Output menu information then exit
@@ -342,19 +345,34 @@ main_data() {
     while read dir; do
         [ -z "$dir" ]        && continue
         is_mountpoint "$dir" || continue
+
+        # For btrfs mounted at top-level (subvolid=5), find the actual root
+        # subvolume as a plain subdirectory.  _btrfs_is_linux_root is stricter
+        # than is_linux -- it rejects top-levels where etc/usr are symlinks into
+        # a subvolume and requires a distro marker file.
+        # btrfs_mp holds the real mountpoint so device/label/dir-name stay correct.
+        local btrfs_mp=""
+        if [ "$(stat -f -c %T "$dir" 2>/dev/null)" = "btrfs" ] && \
+           ! _btrfs_is_linux_root "$dir"; then
+            local subdir
+            subdir=$(_btrfs_find_root_subdir "$dir") || continue
+            btrfs_mp="$dir"
+            dir="$dir/$subdir"
+        fi
+
         is_linux "$dir"      || continue
         #echo "$dir$K_IFS$(linux_entry "$dir")$K_IFS$(human_size "$dir")"
         local _arch=$(get_arch "$dir")
         local    _date=$(fs_date "$dir")
-        local    _sdir=$(basename "$dir")
+        local    _sdir=$(basename "${btrfs_mp:-$dir}")
         local  _distro=$(distro_name "$dir")
         local   distro="$K_IFS$_distro"
         local s_distro="$K_IFS$(clip_string "$_distro" 20)"
         local     date="$K_IFS$_date"
         local     sdir="$K_IFS$_sdir"
         local     arch="$K_IFS$_arch"
-        local      dev="$K_IFS$(fs_dev "$dir")"
-        local    label="$K_IFS$(get_label "$dir")"
+        local      dev="$K_IFS$(fs_dev "${btrfs_mp:-$dir}")"
+        local    label="$K_IFS$(get_label "${btrfs_mp:-$dir}")"
 
         if [ -n "$ONLY_32_BIT"  -a "$_arch" = '64-bit' ]; then
             warn "Skipping %s system %s" "$(pqw 64-bit)" "$(pqw $_distro)"

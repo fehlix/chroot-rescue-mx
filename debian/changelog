@@ -1,3 +1,11 @@
+chroot-rescue (0.2.6+5) mx; urgency=medium
+
+  * Add btrfs subvolume detection to chroot-rescue-select.
+  * Adjust help/usage and fix short option for --pause.
+  * Use default topdir under /tmp/chroot-rescue-scan-...
+
+ -- fehlix <fehlix@mxlinux.org>  Wed, 29 Apr 2026 06:48:45 -0400
+
 chroot-rescue (0.2.6+4) mx; urgency=medium
 
   * Add btrfs subvolume detection with or without luks encryption.
